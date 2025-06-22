@@ -199,10 +199,12 @@ if 'last_uploaded_file_id' not in st.session_state:
 if 'last_api_key_for_processing' not in st.session_state:
     st.session_state.last_api_key_for_processing = None
 
+# Corrected logic to safely get current_file_id
+current_file_id = uploaded_file.id if uploaded_file is not None else None
+
 
 # Process data only if both file and API key are present
 if uploaded_file and openai_api_key:
-    current_file_id = uploaded_file.id
     
     needs_processing = False
 
@@ -226,13 +228,9 @@ if uploaded_file and openai_api_key:
                 st.session_state.last_api_key_for_processing = None
 else:
     # If either file or API key is missing/cleared, ensure processed data state is also cleared
-    # This prevents using stale data if input requirements aren't met
     if st.session_state.all_chunks is not None:
         st.session_state.all_chunks = None
         st.session_state.all_embeddings_np = None
-        # Do not reset last_uploaded_file_id or last_api_key_for_processing here
-        # as that would trigger re-processing unnecessarily when the user re-enters them.
-        # The 'needs_processing' logic above already handles effective re-evaluation.
 
 
 # 3. User Query Section
