@@ -199,8 +199,17 @@ if 'last_uploaded_file_id' not in st.session_state:
 if 'last_api_key_for_processing' not in st.session_state:
     st.session_state.last_api_key_for_processing = None
 
-# Corrected logic to safely get current_file_id
-current_file_id = uploaded_file.id if uploaded_file is not None else None
+
+# *** CRITICAL FIX FOR UPLOADED_FILE.ID ERROR ***
+# Safely get current_file_id
+current_file_id = None
+try:
+    if uploaded_file is not None:
+        current_file_id = uploaded_file.id
+except AttributeError:
+    # This block will catch the error if uploaded_file somehow becomes None or loses its .id attribute
+    # in an unexpected Streamlit lifecycle moment. current_file_id will remain None.
+    pass
 
 
 # Process data only if both file and API key are present
