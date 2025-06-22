@@ -200,17 +200,15 @@ if 'last_api_key_for_processing' not in st.session_state:
     st.session_state.last_api_key_for_processing = None
 
 
-# Process data when file is uploaded and API key is available
+# Process data only if both file and API key are present
 if uploaded_file and openai_api_key:
-    # Use a flag to track if processing is needed
+    current_file_id = uploaded_file.id
+    
     needs_processing = False
 
-    # Check if the file itself has changed
-    if st.session_state.last_uploaded_file_id != (uploaded_file.id if uploaded_file else None):
-        needs_processing = True
-    
-    # Check if the API key has changed
-    if st.session_state.last_api_key_for_processing != openai_api_key:
+    # Check if the file itself has changed OR if the API key has changed
+    if (st.session_state.last_uploaded_file_id != current_file_id or 
+        st.session_state.last_api_key_for_processing != openai_api_key):
         needs_processing = True
 
     if needs_processing:
@@ -220,12 +218,22 @@ if uploaded_file and openai_api_key:
             
             if st.session_state.all_chunks is not None and st.session_state.all_embeddings_np is not None:
                 st.success(f"Successfully processed {len(st.session_state.all_chunks)} data chunks from Excel.")
-                st.session_state.last_uploaded_file_id = uploaded_file.id if uploaded_file else None
+                st.session_state.last_uploaded_file_id = current_file_id
                 st.session_state.last_api_key_for_processing = openai_api_key
             else:
                 st.error("Failed to process Excel data. Please check the file and API key.")
-                st.session_state.last_uploaded_file_id = None # Reset to force re-upload/re-entry
+                st.session_state.last_uploaded_file_id = None # Reset if processing failed
                 st.session_state.last_api_key_for_processing = None
+else:
+    # If either file or API key is missing/cleared, ensure processed data state is also cleared
+    # This prevents using stale data if input requirements aren't met
+    if st.session_state.all_chunks is not None:
+        st.session_state.all_chunks = None
+        st.session_state.all_embeddings_np = None
+        # Do not reset last_uploaded_file_id or last_api_key_for_processing here
+        # as that would trigger re-processing unnecessarily when the user re-enters them.
+        # The 'needs_processing' logic above already handles effective re-evaluation.
+
 
 # 3. User Query Section
 st.subheader("Ask a Question")
