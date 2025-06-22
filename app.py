@@ -180,27 +180,47 @@ st.markdown("Upload your `SSS Master Sheet.xlsx` and ask questions about the dat
 uploaded_file = st.file_uploader("Upload your SSS Master Sheet.xlsx", type=["xlsx"])
 
 # 2. Input OpenAI API Key
-openai_api_key = st.text_input("Enter your OpenAI API Key", type="password")
+# Prioritize Streamlit secrets for deployment, fallback to text input for local
+openai_api_key = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else st.text_input("Enter your OpenAI API Key", type="password")
+
+if "OPENAI_API_KEY" in st.secrets:
+    st.success("OpenAI API Key loaded from Streamlit secrets.")
+elif openai_api_key: # Only show warning if user hasn't entered it and it's not in secrets
+    st.warning("No OpenAI API Key found in Streamlit secrets. Using provided key.")
+
 
 # Store processed data in session state to avoid reprocessing on every rerun
 if 'all_chunks' not in st.session_state:
     st.session_state.all_chunks = None
 if 'all_embeddings_np' not in st.session_state:
     st.session_state.all_embeddings_np = None
+if 'last_uploaded_file_id' not in st.session_state:
+    st.session_state.last_uploaded_file_id = None
+if 'last_api_key_for_processing' not in st.session_state:
+    st.session_state.last_api_key_for_processing = None
+
 
 # Process data when file is uploaded and API key is available
 if uploaded_file and openai_api_key:
-    # Check if data needs to be reloaded/reprocessed (e.g., new file or API key changed)
-    if (st.session_state.get('last_uploaded_file_id') != uploaded_file.id or 
-        st.session_state.get('last_api_key_for_processing') != openai_api_key):
-        
+    # Use a flag to track if processing is needed
+    needs_processing = False
+
+    # Check if the file itself has changed
+    if st.session_state.last_uploaded_file_id != (uploaded_file.id if uploaded_file else None):
+        needs_processing = True
+    
+    # Check if the API key has changed
+    if st.session_state.last_api_key_for_processing != openai_api_key:
+        needs_processing = True
+
+    if needs_processing:
         with st.spinner("Loading and processing data for RAG..."):
             st.session_state.all_chunks, st.session_state.all_embeddings_np = \
                 load_and_process_excel_for_rag(uploaded_file, openai_api_key)
             
-            if st.session_state.all_chunks and st.session_state.all_embeddings_np is not None:
+            if st.session_state.all_chunks is not None and st.session_state.all_embeddings_np is not None:
                 st.success(f"Successfully processed {len(st.session_state.all_chunks)} data chunks from Excel.")
-                st.session_state.last_uploaded_file_id = uploaded_file.id
+                st.session_state.last_uploaded_file_id = uploaded_file.id if uploaded_file else None
                 st.session_state.last_api_key_for_processing = openai_api_key
             else:
                 st.error("Failed to process Excel data. Please check the file and API key.")
@@ -217,7 +237,7 @@ if st.button("Get Answer"):
     elif not uploaded_file:
         st.warning("Please upload the Excel file.")
     elif st.session_state.all_chunks is None or st.session_state.all_embeddings_np is None:
-        st.warning("Data is still loading or failed to load. Please wait or re-upload.")
+        st.warning("Data is still loading or failed to load. Please wait for processing to complete or re-upload.")
     elif not user_query:
         st.warning("Please enter a question.")
     else:
